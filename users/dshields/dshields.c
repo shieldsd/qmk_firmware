@@ -29,3 +29,19 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     return true;
 }
 
+bool get_tapping_force_hold(uint16_t keycode, keyrecord_t *record) {
+    switch (keycode) {
+        case MT_A:
+        case MT_S:
+        case MT_D:
+        case MT_F:
+        case MT_J:
+        case MT_K:
+        case MT_L:
+        case MT_SCLN:
+            return true;
+        default:
+            return false;
+    }
+}
+
