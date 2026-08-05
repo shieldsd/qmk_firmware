@@ -43,11 +43,11 @@
 
 // LED/RGB controls
 #if defined KEYBOARD_planck_light
-    #define LGT_TOG RGB_TOG
-    #define LGT_MOD RGB_MOD
+    #define LGT_TOG RM_TOGG
+    #define LGT_MOD RM_NEXT
     #define LGT_BRT _______
-    #define LGT_INC RGB_HUI
-    #define LGT_DEC RGB_HUD
+    #define LGT_INC RM_HUEU
+    #define LGT_DEC RM_HUED
 #elif defined KEYBOARD_planck_rev3
     #define LGT_TOG BL_TOGG
     #define LGT_MOD BL_STEP
