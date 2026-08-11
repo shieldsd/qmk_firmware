@@ -19,12 +19,29 @@ Brand new to QMK? Start with our [Complete Newbs Guide](https://docs.qmk.fm/#/ne
 
 ## Bootloader
 
-The Model 100 ships with a DFU bootloader. To enter it, press the `Prog` key
-(upper left) or hold it while plugging the keyboard in. The `stm32duino`
-(dfu-util) flasher is used.
+The Model 100 ships Keyboardio's DAPBoot DFU bootloader. To enter it, press the
+`Prog` key (upper left) or hold it while plugging the keyboard in.
+
+We select QMK's `stm32duino` bootloader because it links the application at the
+correct offset: DAPBoot reserves the first 8 KB of flash for itself and expects
+the firmware's vector table at `0x08002000`, which is exactly where the
+`stm32duino` linker script places it.
+
+However, DAPBoot does *not* use the Maple/LeafLabs USB identifiers that the
+`stm32duino` bootloader defaults to (`1EAF:0003`). In DFU mode the Model 100
+enumerates as `3496:0005`, so `rules.mk` overrides `DFU_ARGS`/`DFU_SUFFIX_ARGS`
+accordingly. `make keyboardio/model100:default:flash` then drives dfu-util as:
+
+    dfu-util -d 3496:0005 -a 0 -s 0x08002000:leave -D <firmware>.bin
 
 It is *very* hard to brick a Model 100 short of overwriting the bootloader
 region itself, which requires specialised hardware, so experimentation is safe.
+
+> **Not yet verified on hardware:** software-triggered bootloader entry via
+> `QK_BOOT` issues `NVIC_SystemReset()`. DAPBoot has its own bootloader-entry
+> condition, so it is not yet confirmed that a bare reset drops into DFU rather
+> than straight back into the application. The physical `Prog`-key method (hold
+> while plugging in) is the reliable fallback.
 
 ## Porting notes
 
