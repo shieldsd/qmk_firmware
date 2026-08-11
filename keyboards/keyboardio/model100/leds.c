@@ -1,0 +1,101 @@
+/* Copyright 2018 James Laird-Wah
+ * Copyright 2025 QMK
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "leds.h"
+#include "i2c_master.h"
+#include "led_tables.h"
+#include "rgb_matrix.h"
+#include <string.h>
+#include "model100.h"
+
+#define LED_I2C_TIMEOUT 1000
+
+void set_all_leds_to(uint8_t r, uint8_t g, uint8_t b) {
+  uint8_t buf[] = {
+    TWI_CMD_LED_SET_ALL_TO,
+    b, g, r
+  };
+  i2c_transmit(I2C_ADDR(LEFT), buf, sizeof(buf), LED_I2C_TIMEOUT);
+  i2c_transmit(I2C_ADDR(RIGHT), buf, sizeof(buf), LED_I2C_TIMEOUT);
+  wait_us(10);
+}
+
+void set_led_to(int led, uint8_t r, uint8_t g, uint8_t b) {
+  uint8_t buf[] = {
+    TWI_CMD_LED_SET_ONE_TO,
+    led & 0x1f,
+    b, g, r
+  };
+  int hand = (led >= 32) ? RIGHT : LEFT;
+  i2c_transmit(I2C_ADDR(hand), buf, sizeof(buf), LED_I2C_TIMEOUT);
+  wait_us(10);
+}
+
+#ifdef RGB_MATRIX_ENABLE
+
+static struct {
+  uint8_t b;
+  uint8_t g;
+  uint8_t r;
+} __attribute__((packed)) led_state[64];
+
+static void set_color(int index, uint8_t r, uint8_t g, uint8_t b) {
+  led_state[index].r = r;
+  led_state[index].g = g;
+  led_state[index].b = b;
+}
+
+static void set_color_all(uint8_t r, uint8_t g, uint8_t b) {
+  for (int i=0; i<RGB_MATRIX_LED_COUNT; i++)
+    set_color(i, r, g, b);
+}
+
+static void init(void) {
+  /* The Model 100 gates power to the two 5V scanner/LED nets via B9, which is
+   * enabled in matrix_init(). Unlike the Model 01 there is no separate
+   * high-current LED enable line to drive here. B14/B15 are power-sense inputs. */
+  gpio_set_pin_input(B14);
+  gpio_set_pin_input(B15);
+}
+
+static void flush(void) {
+  uint8_t *bank_data = (uint8_t*)&led_state[0];
+  uint8_t command[1 + 8*3];
+  for (int hand=0; hand<2; hand++) {
+    int addr = I2C_ADDR(hand);
+
+    for (int bank=0; bank<4; bank++) {
+      command[0] = TWI_CMD_LED_BASE + bank;
+      memcpy(&command[1], bank_data, 8*3);
+      i2c_transmit(addr, command, sizeof(command), LED_I2C_TIMEOUT);
+      wait_us(100);
+
+      bank_data += 8*3;
+    }
+  }
+}
+
+const rgb_matrix_driver_t rgb_matrix_driver = {
+  .init = init,
+  .flush = flush,
+  .set_color = set_color,
+  .set_color_all = set_color_all
+};
+
+#endif
+
+/* vim: set ts=2 sw=2 et: */
