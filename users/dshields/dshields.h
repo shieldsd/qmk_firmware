@@ -33,7 +33,8 @@
     || defined KEYBOARD_keyboardio_atreus
     #define LT_G    LT(LWR, KC_G)
     #define LT_H    LT(RSE, KC_H)
-#elif defined KEYBOARD_keyboardio_model01
+#elif defined KEYBOARD_keyboardio_model01 \
+    || defined KEYBOARD_keyboardio_model100
     #define LT_G    LT(FUN, KC_G)
     #define LT_H    LT(FUN, KC_H)
 #else
