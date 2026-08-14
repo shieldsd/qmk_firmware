@@ -23,52 +23,27 @@
  * So we don't want to be too permissive here. */
 #define SCANNER_I2C_TIMEOUT     10
 
-static matrix_row_t rows[MATRIX_ROWS];
 #define ROWS_PER_HAND (MATRIX_ROWS / 2)
 
-// user-defined overridable functions
-
-__attribute__((weak)) void matrix_init_kb(void) { matrix_init_user(); }
-
-__attribute__((weak)) void matrix_scan_kb(void) { matrix_scan_user(); }
-
-__attribute__((weak)) void matrix_init_user(void) {}
-
-__attribute__((weak)) void matrix_scan_user(void) {}
-
-// helper functions
-inline
-uint8_t matrix_rows(void) {
-  return MATRIX_ROWS;
-}
-
-inline
-uint8_t matrix_cols(void) {
-  return MATRIX_COLS;
-}
-
-static int i2c_read_hand(int hand) {
+static void i2c_read_hand(int hand, matrix_row_t current_matrix[]) {
   uint8_t buf[5];
   i2c_status_t ret = i2c_receive(I2C_ADDR(hand), buf, sizeof(buf), SCANNER_I2C_TIMEOUT);
   if (ret != I2C_STATUS_SUCCESS)
-    return 1;
+    return;
 
   if (buf[0] != TWI_REPLY_KEYDATA)
-    return 2;
+    return;
 
   int start_row = hand ? ROWS_PER_HAND : 0;
-  uint8_t *out = &rows[start_row];
-  memcpy(out, &buf[1], 4);
-  return 0;
+  memcpy(&current_matrix[start_row], &buf[1], ROWS_PER_HAND);
 }
 
-static int i2c_set_keyscan_interval(int hand, int delay) {
+static void i2c_set_keyscan_interval(int hand, int delay) {
   uint8_t buf[] = {TWI_CMD_KEYSCAN_INTERVAL, delay};
-  i2c_status_t ret = i2c_transmit(I2C_ADDR(hand), buf, sizeof(buf), SCANNER_I2C_TIMEOUT);
-  return ret;
+  i2c_transmit(I2C_ADDR(hand), buf, sizeof(buf), SCANNER_I2C_TIMEOUT);
 }
 
-void matrix_init(void) {
+void matrix_init_custom(void) {
   /* Turn on the switched 5V network that powers the scanners. On the Model 100
    * this is an open-drain output driven LOW to enable (unlike the Model 01's
    * push-pull C7). The scanner power must come up before I2C is usable, else
@@ -80,31 +55,16 @@ void matrix_init(void) {
   i2c_init();
   i2c_set_keyscan_interval(LEFT, 2);
   i2c_set_keyscan_interval(RIGHT, 2);
-  memset(rows, 0, sizeof(rows));
-
-  matrix_init_kb();
 }
 
-uint8_t matrix_scan(void) {
-  uint8_t ret = 0;
-  ret |= i2c_read_hand(LEFT);
-  ret |= i2c_read_hand(RIGHT);
-  matrix_scan_kb();
-  return ret;
-}
+bool matrix_scan_custom(matrix_row_t current_matrix[]) {
+  matrix_row_t last_matrix[MATRIX_ROWS];
+  memcpy(last_matrix, current_matrix, sizeof(last_matrix));
 
-inline
-matrix_row_t matrix_get_row(uint8_t row) {
-  return rows[row];
-}
+  i2c_read_hand(LEFT, current_matrix);
+  i2c_read_hand(RIGHT, current_matrix);
 
-void matrix_print(void) {
-  print("\nr/c 0123456789ABCDEF\n");
-  for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
-    print_hex8(row); print(": ");
-    print_bin_reverse16(matrix_get_row(row));
-    print("\n");
-  }
+  return memcmp(last_matrix, current_matrix, sizeof(last_matrix)) != 0;
 }
 
 /* vim: set ts=2 sw=2 et: */
