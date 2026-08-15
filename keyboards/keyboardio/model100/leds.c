@@ -83,21 +83,23 @@ void keyboard_post_init_kb(void) {
 }
 
 static void flush(void) {
-  /* TEMP: flush() runs (green test passed), but the normal led_state path is
-   * dark. Is the effect actually writing colors into led_state via set_color()?
-   * Scan led_state for any non-zero byte; light BLUE if the buffer has data,
-   * RED if it's entirely zero. RED => set_color is never populating the buffer
-   * (effect/flags/mode issue); BLUE => buffer has data but the bank send is
-   * wrong (layout/mapping). */
-  bool anyNonZero = false;
-  for (int i = 0; i < 64; i++) {
-    if (led_state[i].r || led_state[i].g || led_state[i].b) { anyNonZero = true; break; }
+  /* TEMP: led_state has data (blue test) but the per-bank 0x80+bank path is dark
+   * while SET_ALL (0x03) works. Drive the per-bank path with HARDCODED non-zero
+   * data (0x20 everywhere). If LEDs light, the 0x80+bank command works and the
+   * bug is the led_state->bank byte layout; if dark, the per-bank command itself
+   * isn't lighting LEDs for us. */
+  uint8_t command[1 + 8*3];
+  for (int hand=0; hand<2; hand++) {
+    int addr = I2C_ADDR(hand);
+    for (int bank=0; bank<4; bank++) {
+      command[0] = TWI_CMD_LED_BASE + bank;
+      memset(&command[1], 0x20, 8*3);
+      i2c_poll_write(addr, command, sizeof(command));
+    }
   }
-  set_all_leds_to(anyNonZero ? 0 : 40, 0, anyNonZero ? 40 : 0);
   return;
 
   uint8_t *bank_data = (uint8_t*)&led_state[0];
-  uint8_t command[1 + 8*3];
   for (int hand=0; hand<2; hand++) {
     int addr = I2C_ADDR(hand);
 
