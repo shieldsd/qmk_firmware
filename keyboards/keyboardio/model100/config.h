@@ -33,3 +33,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define FEE_PAGE_COUNT 4
 #define FEE_MCU_FLASH_SIZE_IGNORE_CHECK
 #define FEE_MCU_FLASH_SIZE 512
+
+/* RGB matrix: come up enabled at a visible brightness with a solid default, so
+ * a fresh flash (empty emulated EEPROM) shows LEDs rather than booting dark. */
+#define RGB_MATRIX_DEFAULT_ON true
+#define RGB_MATRIX_DEFAULT_MODE RGB_MATRIX_SOLID_COLOR
+#define RGB_MATRIX_DEFAULT_VAL 128
+#define RGB_MATRIX_MAXIMUM_BRIGHTNESS 200
