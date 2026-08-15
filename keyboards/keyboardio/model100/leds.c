@@ -69,11 +69,17 @@ static void init(void) {
    * high-current LED enable line to drive here. B14/B15 are power-sense inputs. */
   gpio_set_pin_input(B14);
   gpio_set_pin_input(B15);
+}
 
-  /* TEMP: known-good path — set_all_leds_to lit our green boot beacon earlier.
-   * If the LEDs flash green here at init but stay dark under rgb_matrix, the
-   * hardware/write path is fine and the problem is the rgb_matrix->flush path. */
-  set_all_leds_to(0, 255, 0);
+/* The green boot beacon lit and stayed green -> hardware + write path are fine,
+ * and rgb_matrix's flush() never overwrote it, i.e. rgb_matrix is disabled at
+ * runtime. RGB_MATRIX_DEFAULT_ON only applies when the (emulated-flash) EEPROM
+ * is reset, which it may not be. Force it on at boot regardless of EEPROM. */
+void keyboard_post_init_kb(void) {
+  rgb_matrix_enable_noeeprom();
+  rgb_matrix_mode_noeeprom(RGB_MATRIX_SOLID_COLOR);
+  rgb_matrix_sethsv_noeeprom(0, 0, 128);   /* white, mid brightness */
+  keyboard_post_init_user();
 }
 
 static void flush(void) {
