@@ -94,6 +94,7 @@ This implements the standard keymap, including mousekeys.
 
 It doesn't do cursor warping - QMK does not support absolute mouse positioning.
 
-RGB matrix LED support is present but not yet working on hardware; it is still
-being brought up. Gamma compensation and the hardware's high-speed batch LED
-update functions are not implemented.
+RGB matrix is supported (per-key, both hands). LED colour data is sent to the
+scanners bank-by-bank, interleaved between the two hands to avoid overrunning
+the ATtiny controllers. Gamma compensation and the hardware's high-speed batch
+LED update functions are not implemented.

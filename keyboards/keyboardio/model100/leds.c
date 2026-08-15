@@ -71,17 +71,6 @@ static void init(void) {
   gpio_set_pin_input(B15);
 }
 
-/* The green boot beacon lit and stayed green -> hardware + write path are fine,
- * and rgb_matrix's flush() never overwrote it, i.e. rgb_matrix is disabled at
- * runtime. RGB_MATRIX_DEFAULT_ON only applies when the (emulated-flash) EEPROM
- * is reset, which it may not be. Force it on at boot regardless of EEPROM. */
-void keyboard_post_init_kb(void) {
-  rgb_matrix_enable_noeeprom();
-  rgb_matrix_mode_noeeprom(RGB_MATRIX_SOLID_COLOR);
-  rgb_matrix_sethsv_noeeprom(0, 0, 128);   /* white, mid brightness */
-  keyboard_post_init_user();
-}
-
 /* Each hand's 32 LEDs are sent as 4 banks of 8 LEDs (8 * 3 = 24 bytes). We
  * interleave the two hands bank-by-bank (L0, R0, L1, R1, ...) rather than
  * sending all of one hand then the other: back-to-back writes to the same
