@@ -83,6 +83,13 @@ void keyboard_post_init_kb(void) {
 }
 
 static void flush(void) {
+  /* TEMP: prove whether flush() runs at all. Force GREEN via SET_ALL from inside
+   * flush, ignoring led_state. If LEDs go green, flush IS being called and the
+   * bug is the led_state data path (index/mapping/buffer). If still dark, flush
+   * is NOT being called even after force-enable — a driver-registration issue. */
+  set_all_leds_to(0, 255, 0);
+  return;
+
   uint8_t *bank_data = (uint8_t*)&led_state[0];
   uint8_t command[1 + 8*3];
   for (int hand=0; hand<2; hand++) {
