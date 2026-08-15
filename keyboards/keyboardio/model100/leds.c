@@ -69,6 +69,11 @@ static void init(void) {
    * high-current LED enable line to drive here. B14/B15 are power-sense inputs. */
   gpio_set_pin_input(B14);
   gpio_set_pin_input(B15);
+
+  /* TEMP: known-good path — set_all_leds_to lit our green boot beacon earlier.
+   * If the LEDs flash green here at init but stay dark under rgb_matrix, the
+   * hardware/write path is fine and the problem is the rgb_matrix->flush path. */
+  set_all_leds_to(0, 255, 0);
 }
 
 static void flush(void) {
