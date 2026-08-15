@@ -24,6 +24,12 @@
 #define LEFT            0
 #define RIGHT           1
 
+/* Polled (non-DMA) I2C for the scanners, implemented in matrix.c. Both the key
+ * matrix and the LED driver (leds.c) share this: QMK's ChibiOS DMA i2c_transmit
+ * does not work on the GD32F303, and mixing it with our polled reads corrupts
+ * the bus. addr8 is the pre-shifted 8-bit address (I2C_ADDR macro). */
+bool i2c_poll_write(uint8_t addr8, const uint8_t *src, int n);
+
 #include "leds.h"
 
 /* vim: set ts=2 sw=2 et: */

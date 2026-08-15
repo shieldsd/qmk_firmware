@@ -16,22 +16,22 @@
  */
 
 #include "leds.h"
-#include "i2c_master.h"
 #include "led_tables.h"
 #include "rgb_matrix.h"
 #include <string.h>
 #include "model100.h"
 
-#define LED_I2C_TIMEOUT 1000
+/* LED writes go over the SAME I2C1 bus as the key scanners. QMK's ChibiOS DMA
+ * i2c_transmit does not work on the GD32F303 and mixing it with the polled key
+ * reads corrupts the bus, so use the shared polled i2c_poll_write (matrix.c). */
 
 void set_all_leds_to(uint8_t r, uint8_t g, uint8_t b) {
   uint8_t buf[] = {
     TWI_CMD_LED_SET_ALL_TO,
     b, g, r
   };
-  i2c_transmit(I2C_ADDR(LEFT), buf, sizeof(buf), LED_I2C_TIMEOUT);
-  i2c_transmit(I2C_ADDR(RIGHT), buf, sizeof(buf), LED_I2C_TIMEOUT);
-  wait_us(10);
+  i2c_poll_write(I2C_ADDR(LEFT), buf, sizeof(buf));
+  i2c_poll_write(I2C_ADDR(RIGHT), buf, sizeof(buf));
 }
 
 void set_led_to(int led, uint8_t r, uint8_t g, uint8_t b) {
@@ -41,8 +41,7 @@ void set_led_to(int led, uint8_t r, uint8_t g, uint8_t b) {
     b, g, r
   };
   int hand = (led >= 32) ? RIGHT : LEFT;
-  i2c_transmit(I2C_ADDR(hand), buf, sizeof(buf), LED_I2C_TIMEOUT);
-  wait_us(10);
+  i2c_poll_write(I2C_ADDR(hand), buf, sizeof(buf));
 }
 
 #ifdef RGB_MATRIX_ENABLE
@@ -81,8 +80,7 @@ static void flush(void) {
     for (int bank=0; bank<4; bank++) {
       command[0] = TWI_CMD_LED_BASE + bank;
       memcpy(&command[1], bank_data, 8*3);
-      i2c_transmit(addr, command, sizeof(command), LED_I2C_TIMEOUT);
-      wait_us(100);
+      i2c_poll_write(addr, command, sizeof(command));
 
       bank_data += 8*3;
     }

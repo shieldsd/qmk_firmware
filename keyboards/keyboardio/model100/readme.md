@@ -22,34 +22,34 @@ Brand new to QMK? Start with our [Complete Newbs Guide](https://docs.qmk.fm/#/ne
 The Model 100 ships Keyboardio's DAPBoot DFU bootloader. To enter it, press the
 `Prog` key (upper left) or hold it while plugging the keyboard in.
 
-We select QMK's `stm32duino` bootloader because it links the application at the
-correct offset: DAPBoot reserves the first 8 KB of flash for itself and expects
-the firmware's vector table at `0x08002000`, which is exactly where the
-`stm32duino` linker script places it.
+DAPBoot reserves the first 8 KB of flash and expects the application's vector
+table at `0x08002000`. We link there by naming the stm32duino offset linker
+script (`MCU_LDSCRIPT = STM32F103x8_stm32duino` in `rules.mk`) while declaring
+`"board": "STM32_F103_STM32DUINO"` in `keyboard.json` — rather than setting
+`"bootloader": "stm32duino"`, which would force the Maple-default DFU
+identifiers and clobber ours.
 
-However, DAPBoot does *not* use the Maple/LeafLabs USB identifiers that the
-`stm32duino` bootloader defaults to (`1EAF:0003`). In DFU mode the Model 100
-enumerates as `3496:0005`, so `rules.mk` overrides `DFU_ARGS`/`DFU_SUFFIX_ARGS`
-accordingly. `make keyboardio/model100:default:flash` then drives dfu-util as:
+In DFU mode the Model 100 enumerates as `3496:0005` (the application enumerates
+as `3496:0006`), so `rules.mk` sets `DFU_ARGS`/`DFU_SUFFIX_ARGS` accordingly.
+DAPBoot is a plain-DFU (non-DfuSe) bootloader, so it takes no `-s <addr>`
+specifier; `make keyboardio/model100:default:flash` drives dfu-util as:
 
-    dfu-util -d 3496:0005 -a 0 -s 0x08002000:leave -D <firmware>.bin
+    dfu-util -d 3496:0005 -a 0 -R -D <firmware>.bin
 
 It is *very* hard to brick a Model 100 short of overwriting the bootloader
 region itself, which requires specialised hardware, so experimentation is safe.
 
-> **Not yet verified on hardware:** software-triggered bootloader entry via
-> `QK_BOOT` issues `NVIC_SystemReset()`. DAPBoot has its own bootloader-entry
-> condition, so it is not yet confirmed that a bare reset drops into DFU rather
-> than straight back into the application. The physical `Prog`-key method (hold
-> while plugging in) is the reliable fallback.
+> **Note:** software-triggered bootloader entry via `QK_BOOT` issues
+> `NVIC_SystemReset()`; DAPBoot has its own entry condition, so a bare reset is
+> not guaranteed to drop into DFU. The physical `Prog`-key method (hold while
+> plugging in) is the reliable fallback.
 
 ## Porting notes
 
 The Model 100 is architecturally almost identical to the Model 01: both halves
 are ATtiny key scanners that the main MCU talks to over I2C, using the same wire
 protocol (`wire-protocol-constants.h`), the same scanner addresses, and the same
-64-LED (4 banks x 8, per hand) layout. The custom `matrix.c` / `leds.c` are
-therefore lifted directly from the Model 01.
+64-LED (4 banks x 8, per hand) layout.
 
 What differs is the **main MCU**:
 
@@ -59,27 +59,34 @@ What differs is the **main MCU**:
 | Scanner power enable  | `C7`, push-pull, HIGH | `B9`, open-drain, LOW  |
 | Power-sense inputs    | `B4`                  | `B14`, `B15`           |
 | I2C to scanners       | AVR TWI               | I2C1 = `B6` / `B7`     |
+| USB D+ pull-up        | built-in              | GPIO `A8` (active-high)|
 
 The GD32F303 is register-compatible enough with the STM32F103 high-density line
-that ChibiOS's existing STM32F1 HAL drives it. We therefore build it as
-`STM32F103` with `board.h` selecting the high-density (`STM32F103xE`) variant,
-following the precedent set by `keyboards/mlego/m65/rev2`. There is no need for a
-dedicated GD32 ChibiOS port (the in-tree `GD32VF103` support is the unrelated
-RISC-V part).
+that ChibiOS's existing STM32F1 HAL drives it. We build it as `STM32F103` with
+`board.h` selecting the high-density (`STM32F103xE`) variant, following the
+precedent set by `keyboards/mlego/m65/rev2`. No dedicated GD32 ChibiOS port is
+needed (the in-tree `GD32VF103` support is the unrelated RISC-V part).
 
-Pin assignments were taken from the Kaleidoscope Model 100 hardware plugin
-(`kaleidoscope/device/keyboardio/Model100.cpp`) and the
-`ArduinoCore-GD32-Keyboardio` `keyboardio_model_100` variant.
+Three Model-100-specific details were needed to bring it up on real hardware:
 
-### Still to verify on real hardware
+* **Clock:** the board has no usable HSE crystal (its DAPBoot runs on HSI), so
+  `mcuconf.h` runs the MCU from the internal HSI oscillator (HSI/2 x 12 = 48 MHz
+  sysclk, giving a valid 48 MHz USB clock). A stock HSE config hangs at boot
+  waiting for `HSERDY`.
+* **USB pull-up:** the D+ pull-up is gated by GPIO `A8` (active-high), not a
+  fixed resistor, so `board.h` overrides `usb_lld_connect_bus`/`disconnect_bus`
+  to drive `A8`. Without it the host never sees the device.
+* **Scanner I2C:** ChibiOS's STM32 I2C driver is DMA-based and does not work on
+  the GD32's I2C peripheral, so `matrix.c` drives I2C1 with a small polled
+  (register-level) implementation, which `leds.c` shares via `i2c_poll_write()`.
 
-* The GD32F303 clock tree under the stm32duino board files — the ChibiOS
-  `mcuconf.h` clock setup for a genuine STM32F103 may need tuning so USB and the
-  I2C `TIMINGR`/prescaler land at the right frequency.
-* I2C1 pin alternate-function / open-drain wiring for `B6`/`B7`.
+Pin assignments and the DFU/HSI/pull-up details were taken from the Kaleidoscope
+Model 100 hardware plugin (`kaleidoscope/device/keyboardio/Model100.cpp`), the
+`ArduinoCore-GD32-Keyboardio` `keyboardio_model_100` variant, and Keyboardio's
+DAPBoot fork (`gd32-bootloader-dfu-dapboot`).
 
 The `Prog` key is at matrix `[0, 7]` (upper left), the same position as on the
-Model 01, and the default keymap places `QK_BOOT` there for bootloader entry.
+Model 01, and the default keymap places `QK_BOOT` there.
 
 ## Features
 
@@ -87,5 +94,6 @@ This implements the standard keymap, including mousekeys.
 
 It doesn't do cursor warping - QMK does not support absolute mouse positioning.
 
-LED support is limited. Gamma compensation and the high speed batch update
-functions supported by the hardware are not implemented.
+RGB matrix LED support is present but not yet working on hardware; it is still
+being brought up. Gamma compensation and the hardware's high-speed batch LED
+update functions are not implemented.
