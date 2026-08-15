@@ -83,11 +83,17 @@ void keyboard_post_init_kb(void) {
 }
 
 static void flush(void) {
-  /* TEMP: prove whether flush() runs at all. Force GREEN via SET_ALL from inside
-   * flush, ignoring led_state. If LEDs go green, flush IS being called and the
-   * bug is the led_state data path (index/mapping/buffer). If still dark, flush
-   * is NOT being called even after force-enable — a driver-registration issue. */
-  set_all_leds_to(0, 255, 0);
+  /* TEMP: flush() runs (green test passed), but the normal led_state path is
+   * dark. Is the effect actually writing colors into led_state via set_color()?
+   * Scan led_state for any non-zero byte; light BLUE if the buffer has data,
+   * RED if it's entirely zero. RED => set_color is never populating the buffer
+   * (effect/flags/mode issue); BLUE => buffer has data but the bank send is
+   * wrong (layout/mapping). */
+  bool anyNonZero = false;
+  for (int i = 0; i < 64; i++) {
+    if (led_state[i].r || led_state[i].g || led_state[i].b) { anyNonZero = true; break; }
+  }
+  set_all_leds_to(anyNonZero ? 0 : 40, 0, anyNonZero ? 40 : 0);
   return;
 
   uint8_t *bank_data = (uint8_t*)&led_state[0];
