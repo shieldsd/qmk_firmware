@@ -16,7 +16,6 @@
  */
 
 #include "leds.h"
-#include "led_tables.h"
 #include "rgb_matrix.h"
 #include <string.h>
 #include "model100.h"
@@ -52,14 +51,14 @@ static struct {
   uint8_t r;
 } __attribute__((packed)) led_state[64];
 
-/* rgb_matrix passes raw (linear) channel values; the ATtiny drives the LEDs
- * directly, so without output gamma the secondary channels stay too bright and
- * colours look washed out / red-heavy. Apply the CIE1931 curve per channel
- * (same table QMK/Kaleidoscope use) so colours saturate correctly. */
 static void set_color(int index, uint8_t r, uint8_t g, uint8_t b) {
-  led_state[index].r = pgm_read_byte(&CIE1931_CURVE[r]);
-  led_state[index].g = pgm_read_byte(&CIE1931_CURVE[g]);
-  led_state[index].b = pgm_read_byte(&CIE1931_CURVE[b]);
+  /* No gamma here: with USE_CIE1931_CURVE the CIE curve is already applied to
+   * the value in hsv_to_rgb (quantum/color.c) before rgb_matrix hands us these
+   * channels. Correcting again crushed the mids (over-contrast, e.g. digital
+   * rain trails dropping to black too fast). Match the Model 01 driver. */
+  led_state[index].r = r;
+  led_state[index].g = g;
+  led_state[index].b = b;
 }
 
 static void set_color_all(uint8_t r, uint8_t g, uint8_t b) {
