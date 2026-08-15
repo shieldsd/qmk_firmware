@@ -82,16 +82,27 @@ void keyboard_post_init_kb(void) {
   keyboard_post_init_user();
 }
 
+/* Each hand's 32 LEDs are sent as 4 banks of 8 LEDs (8 * 3 = 24 bytes). We
+ * interleave the two hands bank-by-bank (L0, R0, L1, R1, ...) rather than
+ * sending all of one hand then the other: back-to-back writes to the same
+ * ATtiny outrun it (it is still committing the previous bank to memory) and
+ * later banks get dropped. Interleaving gives each scanner time between its
+ * bank writes. (Kaleidoscope documents this exact race.) led_state[0..31] is
+ * the left hand, [32..63] the right. */
+#define LEDS_PER_HAND   32
+#define LED_BANKS       4
+#define LEDS_PER_BANK   (LEDS_PER_HAND / LED_BANKS)   /* 8 */
+
 static void flush(void) {
-  /* TEMP: per-bank 0x20 lit LEFT only, RIGHT stayed dark. Isolate RIGHT: drive
-   * LEFT green and RIGHT red via the known-good SET_ALL command. If RIGHT shows
-   * red, RIGHT responds to LED SET_ALL and the per-bank issue is timing/ordering;
-   * if RIGHT stays dark to SET_ALL too, RIGHT's LED write address/path is wrong
-   * (even though its key reads work). */
-  uint8_t l[] = { TWI_CMD_LED_SET_ALL_TO, 0, 255, 0 };   /* green (b,g,r) */
-  uint8_t r[] = { TWI_CMD_LED_SET_ALL_TO, 0, 0, 255 };   /* red   (b,g,r) */
-  i2c_poll_write(I2C_ADDR(LEFT),  l, sizeof(l));
-  i2c_poll_write(I2C_ADDR(RIGHT), r, sizeof(r));
+  uint8_t command[1 + LEDS_PER_BANK * 3];
+  for (int bank = 0; bank < LED_BANKS; bank++) {
+    command[0] = TWI_CMD_LED_BASE + bank;
+    for (int hand = 0; hand < 2; hand++) {
+      int first = hand * LEDS_PER_HAND + bank * LEDS_PER_BANK;
+      memcpy(&command[1], &led_state[first], LEDS_PER_BANK * 3);
+      i2c_poll_write(I2C_ADDR(hand), command, sizeof(command));
+    }
+  }
 }
 
 const rgb_matrix_driver_t rgb_matrix_driver = {
