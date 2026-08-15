@@ -83,34 +83,15 @@ void keyboard_post_init_kb(void) {
 }
 
 static void flush(void) {
-  /* TEMP: led_state has data (blue test) but the per-bank 0x80+bank path is dark
-   * while SET_ALL (0x03) works. Drive the per-bank path with HARDCODED non-zero
-   * data (0x20 everywhere). If LEDs light, the 0x80+bank command works and the
-   * bug is the led_state->bank byte layout; if dark, the per-bank command itself
-   * isn't lighting LEDs for us. */
-  uint8_t command[1 + 8*3];
-  for (int hand=0; hand<2; hand++) {
-    int addr = I2C_ADDR(hand);
-    for (int bank=0; bank<4; bank++) {
-      command[0] = TWI_CMD_LED_BASE + bank;
-      memset(&command[1], 0x20, 8*3);
-      i2c_poll_write(addr, command, sizeof(command));
-    }
-  }
-  return;
-
-  uint8_t *bank_data = (uint8_t*)&led_state[0];
-  for (int hand=0; hand<2; hand++) {
-    int addr = I2C_ADDR(hand);
-
-    for (int bank=0; bank<4; bank++) {
-      command[0] = TWI_CMD_LED_BASE + bank;
-      memcpy(&command[1], bank_data, 8*3);
-      i2c_poll_write(addr, command, sizeof(command));
-
-      bank_data += 8*3;
-    }
-  }
+  /* TEMP: per-bank 0x20 lit LEFT only, RIGHT stayed dark. Isolate RIGHT: drive
+   * LEFT green and RIGHT red via the known-good SET_ALL command. If RIGHT shows
+   * red, RIGHT responds to LED SET_ALL and the per-bank issue is timing/ordering;
+   * if RIGHT stays dark to SET_ALL too, RIGHT's LED write address/path is wrong
+   * (even though its key reads work). */
+  uint8_t l[] = { TWI_CMD_LED_SET_ALL_TO, 0, 255, 0 };   /* green (b,g,r) */
+  uint8_t r[] = { TWI_CMD_LED_SET_ALL_TO, 0, 0, 255 };   /* red   (b,g,r) */
+  i2c_poll_write(I2C_ADDR(LEFT),  l, sizeof(l));
+  i2c_poll_write(I2C_ADDR(RIGHT), r, sizeof(r));
 }
 
 const rgb_matrix_driver_t rgb_matrix_driver = {
